@@ -102,24 +102,64 @@ client.on("messageCreate", async (message) => {
 
   // SEND DM
   try {
-    await user.send(`💬 Staff: ${message.content}`);
+    await user.send(`Staff: ${message.content}`);
   } catch (err) {
     console.log("DM FAILED:", err);
   }
 
   // ================= CLOSE + TRANSCRIPT =================
-  if (message.content === "!close") {
-    await message.channel.send("🔒 Closing ticket...");
+if (message.content === "!close") {
+  const closeEmbed = new EmbedBuilder()
+    .setTitle("🔒 Ticket Closed")
+    .setDescription(
+      "This ticket has been closed by staff.\n\n" +
+      "If you send another message, a new ticket will automatically be created."
+    )
+    .setColor("Red")
+    .setTimestamp();
 
-    await message.channel.setArchived(true);
+  // Send to thread (NO TEXT MESSAGE)
+  await message.channel.send({
+    embeds: [closeEmbed]
+  });
+
+  // Archive thread
+  await message.channel.setArchived(true);
+
+  // Remove from memory
+  const entry = [...tickets.entries()]
+    .find(([_, threadId]) => threadId === message.channel.id);
+
+  if (entry) {
+    const userId = entry[0];
+
+    try {
+      const user = await client.users.fetch(userId);
+
+      await user.send({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("🔒 Ticket Closed")
+            .setDescription(
+              "Your ticket has been closed.\n\n" +
+              "Send another message anytime to open a new one."
+            )
+            .setColor("Red")
+        ]
+      });
+    } catch (err) {
+      console.log("DM close failed:", err);
+    }
 
     tickets.delete(userId);
-    return;
   }
+
+  return;
+}
 
   // NORMAL REPLY (no command needed)
   try {
-    await user.send(`💬 Staff: ${message.content}`);
+    await user.send(`Staff: ${message.content}`);
   } catch (err) {
     console.log("DM FAILED:", err);
   }
