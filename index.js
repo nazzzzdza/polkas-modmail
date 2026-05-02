@@ -37,15 +37,19 @@ client.once("ready", () => {
   console.log(`READY: ${client.user.tag}`);
 
   // STATUS (FIXED LOCATION)
-client.user.setPresence({
-  activities: [
-    {
-      name: "dm me for support <3",
-      type: 1, // Streaming
-      url: "https://twitch.tv/discord"
-    }
-  ],
-  status: "online"
+client.once("ready", () => {
+  console.log(`READY: ${client.user.tag}`);
+
+  client.user.setPresence({
+    activities: [
+      {
+        name: "dm me for support <3",
+        type: 1, // Streaming (purple)
+        url: "https://twitch.tv/discord"
+      }
+    ],
+    status: "online"
+  });
 });
 
 // ================= MAIN =================
