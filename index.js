@@ -71,7 +71,7 @@ client.on("messageCreate", async (message) => {
       await message.author.send({
         embeds: [
           new EmbedBuilder()
-            .setTitle("<a:w_bunny:1493559677747990538> ⋯ ⠀new thread opened")
+            .setTitle("<a:w_bunny:1500252170132394024> ⋯ ⠀new thread opened")
             .setDescription(
               "please be patient while waiting for a response.\n" +
               "if needed, ping staff in the server after 24h."
@@ -93,7 +93,7 @@ client.on("messageCreate", async (message) => {
         ]
       });
 
-      await message.react("📩");
+      await message.react("<a:wh_envelope:1500252173546557480>");
       return;
     }
 
@@ -149,7 +149,7 @@ client.on("messageCreate", async (message) => {
       await message.channel.send({
         embeds: [
           new EmbedBuilder()
-            .setTitle("<a:w_bunny:1493559677747990538> ⋯ ⠀thread closed")
+            .setTitle("<a:w_bunny:1500252170132394024> ⋯ ⠀thread closed")
             .setDescription("ticket has been closed by staff.")
             .setColor(0x000000)
         ]
@@ -159,7 +159,7 @@ client.on("messageCreate", async (message) => {
         await user.send({
           embeds: [
             new EmbedBuilder()
-              .setTitle("<a:w_bunny:1493559677747990538> ⋯ ⠀thread closed")
+              .setTitle("<a:w_bunny:1500252170132394024> ⋯ ⠀thread closed")
               .setDescription(
                 "this ticket has been closed.\n" +
                 "send a new message to open a new thread."
