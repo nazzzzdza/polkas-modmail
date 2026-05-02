@@ -1,68 +1,158 @@
-// ================= STAFF → USER =================
-if (!message.guild) return;
+const express = require("express");
+const app = express();
 
-const isThread =
-  message.channel.type === ChannelType.PublicThread ||
-  message.channel.type === ChannelType.PrivateThread;
+app.get("/", (_, res) => res.send("Modmail running"));
 
-if (!isThread) return;
+app.listen(3000, () => console.log("Web server running"));
 
-if (!message.member?.roles.cache.has(STAFF_ROLE_ID)) return;
+const {
+  Client,
+  GatewayIntentBits,
+  Partials,
+  ChannelType,
+  EmbedBuilder
+} = require("discord.js");
 
-// find ticket
-const entry = [...tickets.entries()]
-  .find(([_, threadId]) => threadId === message.channel.id);
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.DirectMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers
+  ],
+  partials: [Partials.Channel]
+});
 
-if (!entry) return;
+// ===== CONFIG =====
+const GUILD_ID = "1461112510798233927";
+const FORUM_CHANNEL_ID = "1500206600529641482";
+const STAFF_ROLE_ID = "1461112511301685296";
 
-const userId = entry[0];
-const user = await client.users.fetch(userId);
+// memory map (resets on restart)
+const tickets = new Map(); // userId -> threadId
 
-const content = message.content?.trim();
+client.once("ready", () => {
+  console.log(`READY: ${client.user.tag}`);
+});
 
-// ================= COMMAND HANDLER (BLOCK FIRST) =================
-if (content.startsWith("!")) {
+// ================= MAIN HANDLER =================
+client.on("messageCreate", async (message) => {
+  if (message.author.bot) return;
 
-  // ===== CLOSE COMMAND =====
-  if (content === "!close") {
-    const closeEmbed = new EmbedBuilder()
-      .setTitle("🔒 Ticket Closed")
-      .setDescription(
-        "This ticket has been closed by staff.\n\n" +
-        "Send another message anytime to open a new ticket."
-      )
-      .setColor("Red");
+  // ================= USER DM =================
+  if (message.channel.type === ChannelType.DM) {
+    let threadId = tickets.get(message.author.id);
+    let thread;
 
-    await message.channel.send({ embeds: [closeEmbed] });
+    const guild = await client.guilds.fetch(GUILD_ID);
+    const forum = await guild.channels.fetch(FORUM_CHANNEL_ID);
 
-    try {
-      await user.send({
+    // create ticket if none exists
+    if (!threadId) {
+      thread = await forum.threads.create({
+        name: `ticket-${message.author.username}`,
+        message: {
+          content: `📩 New ticket from **${message.author.tag}**`
+        }
+      });
+
+      tickets.set(message.author.id, thread.id);
+
+      await thread.send({
         embeds: [
           new EmbedBuilder()
-            .setTitle("🔒 Ticket Closed")
-            .setDescription(
-              "Your ticket has been closed.\nSend a new message anytime to open a new one."
-            )
-            .setColor("Red")
+            .setTitle("New Ticket")
+            .setDescription(message.content || "*no text*")
+            .setColor("Blue")
         ]
       });
-    } catch (err) {
-      console.log("DM failed:", err);
+
+      await message.react("📩");
+      return;
     }
 
-    await message.channel.setArchived(true);
-    tickets.delete(userId);
+    thread = await client.channels.fetch(threadId);
+    if (!thread) return;
+
+    await thread.send({
+      content: `**${message.author.tag}:** ${message.content || "*no text*"}`,
+      files: [...message.attachments.values()]
+    });
 
     return;
   }
 
-  // block all other commands (!r etc)
-  return;
-}
+  // ================= STAFF HANDLER =================
+  if (!message.guild) return;
 
-// ================= NORMAL STAFF MESSAGE =================
-try {
-  await user.send(`💬 Staff: ${message.content}`);
-} catch (err) {
-  console.log("DM failed:", err);
-}
+  const isThread =
+    message.channel.type === ChannelType.PublicThread ||
+    message.channel.type === ChannelType.PrivateThread;
+
+  if (!isThread) return;
+
+  if (!message.member?.roles.cache.has(STAFF_ROLE_ID)) return;
+
+  const entry = [...tickets.entries()]
+    .find(([_, threadId]) => threadId === message.channel.id);
+
+  if (!entry) return;
+
+  const userId = entry[0];
+
+  const content = message.content?.trim();
+
+  // ================= COMMAND HANDLER =================
+  if (content.startsWith("!")) {
+
+    // ===== CLOSE =====
+    if (content === "!close") {
+      const closeEmbed = new EmbedBuilder()
+        .setTitle("🔒 Ticket Closed")
+        .setDescription(
+          "This ticket has been closed by staff.\n\n" +
+          "Send another message to open a new ticket."
+        )
+        .setColor("Red");
+
+      await message.channel.send({ embeds: [closeEmbed] });
+
+      try {
+        const user = await client.users.fetch(userId);
+
+        await user.send({
+          embeds: [
+            new EmbedBuilder()
+              .setTitle("🔒 Ticket Closed")
+              .setDescription(
+                "Your ticket has been closed.\nSend a new message anytime to open a new one."
+              )
+              .setColor("Red")
+          ]
+        });
+      } catch (err) {
+        console.log("DM failed:", err);
+      }
+
+      await message.channel.setArchived(true);
+      tickets.delete(userId);
+
+      return;
+    }
+
+    // block all other commands
+    return;
+  }
+
+  // ================= NORMAL STAFF MESSAGE =================
+  try {
+    const user = await client.users.fetch(userId);
+
+    await user.send(`💬 **Staff:** ${message.content}`);
+  } catch (err) {
+    console.log("DM failed:", err);
+  }
+});
+
+client.login(process.env.TOKEN);
