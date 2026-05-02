@@ -28,9 +28,6 @@ const GUILD_ID = "1461112510798233927";
 const FORUM_CHANNEL_ID = "1500206600529641482";
 const STAFF_ROLE_ID = "1461112511301685296";
 
-// CUSTOM COLORS (change this)
-const EMBED_COLOR = 0x9b59b6; // purple
-
 const tickets = new Map();
 
 // ================= READY =================
@@ -54,14 +51,13 @@ client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
 
   // ================= USER DM =================
-  if (message.channel.type === ChannelType.DM) {
+  if (message.channel.isDMBased()) {
     let threadId = tickets.get(message.author.id);
     let thread;
 
     const guild = await client.guilds.fetch(GUILD_ID);
     const forum = await guild.channels.fetch(FORUM_CHANNEL_ID);
 
-    // CREATE TICKET
     if (!threadId) {
       thread = await forum.threads.create({
         name: `ticket-${message.author.username}`,
@@ -72,17 +68,18 @@ client.on("messageCreate", async (message) => {
 
       tickets.set(message.author.id, thread.id);
 
-      // FIRST DM CONFIRMATION (NEW)
       await message.author.send({
         embeds: [
           new EmbedBuilder()
             .setTitle("<a:w_bunny:1493559677747990538> ⋯ ⠀new thread opened")
-            .setDescription("please be patient while waiting for an answer, feel free to ping staff in the server if not answered within 24h. \n please be aware that we do not take action for any personal drama that do not affect our server!")
+            .setDescription(
+              "please be patient while waiting for a response.\n" +
+              "if needed, ping staff in the server after 24h."
+            )
             .setColor(0x000000)
         ]
       });
 
-      // STAFF SIDE FIRST MESSAGE
       await thread.send({
         embeds: [
           new EmbedBuilder()
@@ -96,11 +93,11 @@ client.on("messageCreate", async (message) => {
         ]
       });
 
-      await message.react("<a:wh_envelope:1493560125112320081>");
+      await message.react("📩");
       return;
     }
 
-    thread = await client.channels.fetch(threadId);
+    thread = await client.channels.fetch(threadId).catch(() => null);
     if (!thread) return;
 
     await thread.send({
@@ -149,23 +146,24 @@ client.on("messageCreate", async (message) => {
 
     if (content === "!close") {
 
-      // STAFF CLOSE EMBED
       await message.channel.send({
         embeds: [
           new EmbedBuilder()
             .setTitle("<a:w_bunny:1493559677747990538> ⋯ ⠀thread closed")
-            .setDescription("ticket has been closed by staff, please do not delete this forum unless admin or owner")
+            .setDescription("ticket has been closed by staff.")
             .setColor(0x000000)
         ]
       });
 
-      // USER CLOSE EMBED
       try {
         await user.send({
           embeds: [
             new EmbedBuilder()
               .setTitle("<a:w_bunny:1493559677747990538> ⋯ ⠀thread closed")
-              .setDescription("this ticket has been closed by staff, a new message after this automated message will create a new thread! \n contact us again if needed love")
+              .setDescription(
+                "this ticket has been closed.\n" +
+                "send a new message to open a new thread."
+              )
               .setColor(0x000000)
           ]
         });
@@ -180,7 +178,7 @@ client.on("messageCreate", async (message) => {
     return;
   }
 
-  // ================= STAFF MESSAGE (EMBED VERSION) =================
+  // ================= STAFF MESSAGE =================
   try {
     await user.send({
       embeds: [
