@@ -41,12 +41,11 @@ client.once("ready", () => {
     activities: [
       {
         name: "dm me for support <3",
-        type: 0
-      }
-    ],
-    status: "online"
+        type: 1,
+        url: "https://www.twitch.tv/discord"
+      }],
+      status: "online"
   });
-});
 
 // ================= MAIN =================
 client.on("messageCreate", async (message) => {
