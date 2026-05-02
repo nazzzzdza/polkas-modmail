@@ -29,14 +29,26 @@ const GUILD_ID = "1461112510798233927";
 const FORUM_CHANNEL_ID = "1500206600529641482";
 const STAFF_ROLE_ID = "1461112511301685296";
 
-// memory map (resets on restart)
+// memory (resets on restart)
 const tickets = new Map(); // userId -> threadId
 
+// ================= READY =================
 client.once("ready", () => {
   console.log(`READY: ${client.user.tag}`);
+
+  // STATUS (FIXED LOCATION)
+  client.user.setPresence({
+    activities: [
+      {
+        name: "dm me for support <3",
+        type: 0 // Playing
+      }
+    ],
+    status: "online"
+  });
 });
 
-// ================= MAIN HANDLER =================
+// ================= MAIN =================
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
 
@@ -48,7 +60,7 @@ client.on("messageCreate", async (message) => {
     const guild = await client.guilds.fetch(GUILD_ID);
     const forum = await guild.channels.fetch(FORUM_CHANNEL_ID);
 
-    // create ticket if none exists
+    // CREATE TICKET
     if (!threadId) {
       thread = await forum.threads.create({
         name: `ticket-${message.author.username}`,
@@ -72,18 +84,18 @@ client.on("messageCreate", async (message) => {
       return;
     }
 
+    // EXISTING TICKET
     thread = await client.channels.fetch(threadId);
     if (!thread) return;
 
     await thread.send({
-      content: `**${message.author.tag}:** ${message.content || "*no text*"}`,
-      files: [...message.attachments.values()]
+      content: `**${message.author.tag}:** ${message.content || "*no text*"}`
     });
 
     return;
   }
 
-  // ================= STAFF HANDLER =================
+  // ================= STAFF =================
   if (!message.guild) return;
 
   const isThread =
@@ -100,13 +112,14 @@ client.on("messageCreate", async (message) => {
   if (!entry) return;
 
   const userId = entry[0];
-
   const content = message.content?.trim();
 
-  // ================= COMMAND HANDLER =================
+  const user = await client.users.fetch(userId);
+
+  // ================= COMMANDS =================
   if (content.startsWith("!")) {
 
-    // ===== CLOSE =====
+    // CLOSE TICKET
     if (content === "!close") {
       const closeEmbed = new EmbedBuilder()
         .setTitle("🔒 Ticket Closed")
@@ -119,8 +132,6 @@ client.on("messageCreate", async (message) => {
       await message.channel.send({ embeds: [closeEmbed] });
 
       try {
-        const user = await client.users.fetch(userId);
-
         await user.send({
           embeds: [
             new EmbedBuilder()
@@ -145,23 +156,12 @@ client.on("messageCreate", async (message) => {
     return;
   }
 
-  // ================= NORMAL STAFF MESSAGE =================
+  // ================= NORMAL MESSAGE =================
   try {
-    const user = await client.users.fetch(userId);
-
     await user.send(`💬 **Staff:** ${message.content}`);
   } catch (err) {
     console.log("DM failed:", err);
   }
 });
-
-  client.user.setPresence({
-    activities: [{
-      name: "dm me for support <3",
-      type: 1,
-      url: "https://www.twitch.tv/discord"
-    }],
-    status: "online"
-  });
 
 client.login(process.env.TOKEN);
