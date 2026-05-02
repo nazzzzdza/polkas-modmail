@@ -66,7 +66,7 @@ client.on("messageCreate", async (message) => {
       thread = await forum.threads.create({
         name: `ticket-${message.author.username}`,
         message: {
-          content: `📩 New ticket from **${message.author.tag}**`
+          content: `new thread from **${message.author.tag}**`
         }
       });
 
@@ -76,9 +76,9 @@ client.on("messageCreate", async (message) => {
       await message.author.send({
         embeds: [
           new EmbedBuilder()
-            .setTitle("📩 Ticket Created")
-            .setDescription("Your message has been sent to staff. Please wait for a response.")
-            .setColor(EMBED_COLOR)
+            .setTitle("<a:w_bunny:1493559677747990538> ⋯ ⠀new thread opened")
+            .setDescription("please be patient while waiting for an answer, feel free to ping staff in the server if not answered within 24h. \n please be aware that we do not take action for any personal drama that do not affect our server!")
+            .setColor(0x000000)
         ]
       });
 
@@ -86,9 +86,9 @@ client.on("messageCreate", async (message) => {
       await thread.send({
         embeds: [
           new EmbedBuilder()
-            .setTitle("New Ticket")
+            .setTitle("new thread <3")
             .setDescription(message.content || "*no text*")
-            .setColor(EMBED_COLOR)
+            .setColor(0x000000)
             .setAuthor({
               name: message.author.tag,
               iconURL: message.author.displayAvatarURL()
@@ -96,7 +96,7 @@ client.on("messageCreate", async (message) => {
         ]
       });
 
-      await message.react("📩");
+      await message.react("<a:wh_envelope:1493560125112320081>");
       return;
     }
 
@@ -107,7 +107,7 @@ client.on("messageCreate", async (message) => {
       embeds: [
         new EmbedBuilder()
           .setDescription(message.content || "*no text*")
-          .setColor(EMBED_COLOR)
+          .setColor(0x000000)
           .setAuthor({
             name: message.author.tag,
             iconURL: message.author.displayAvatarURL()
@@ -153,9 +153,9 @@ client.on("messageCreate", async (message) => {
       await message.channel.send({
         embeds: [
           new EmbedBuilder()
-            .setTitle("🔒 Ticket Closed")
-            .setDescription("This ticket has been closed by staff.")
-            .setColor(EMBED_COLOR)
+            .setTitle("<a:w_bunny:1493559677747990538> ⋯ ⠀thread closed")
+            .setDescription("ticket has been closed by staff, please do not delete this forum unless admin or owner")
+            .setColor(0x000000)
         ]
       });
 
@@ -164,9 +164,9 @@ client.on("messageCreate", async (message) => {
         await user.send({
           embeds: [
             new EmbedBuilder()
-              .setTitle("🔒 Ticket Closed")
-              .setDescription("Your ticket has been closed. You can send a new message anytime to open a new one.")
-              .setColor(EMBED_COLOR)
+              .setTitle("<a:w_bunny:1493559677747990538> ⋯ ⠀thread closed")
+              .setDescription("this ticket has been closed by staff, a new message after this automated message will create a new thread! \n contact us again if needed love")
+              .setColor(0x000000)
           ]
         });
       } catch {}
@@ -186,7 +186,7 @@ client.on("messageCreate", async (message) => {
       embeds: [
         new EmbedBuilder()
           .setDescription(message.content)
-          .setColor(EMBED_COLOR)
+          .setColor(0xffffff)
           .setAuthor({
             name: message.author.tag,
             iconURL: message.author.displayAvatarURL()
