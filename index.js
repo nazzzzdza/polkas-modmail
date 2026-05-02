@@ -155,4 +155,13 @@ client.on("messageCreate", async (message) => {
   }
 });
 
+  client.user.setPresence({
+    activities: [{
+      name: "dm me for support <3",
+      type: 1,
+      url: "https://www.twitch.tv/discord"
+    }],
+    status: "online"
+  });
+
 client.login(process.env.TOKEN);
