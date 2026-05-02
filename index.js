@@ -36,16 +36,18 @@ const tickets = new Map();
 client.once("ready", () => {
   console.log(`READY: ${client.user.tag}`);
 
-  // SAFE STATUS (no crashes)
+  // SAFE STATUS (fixed)
   client.user.setPresence({
     activities: [
       {
         name: "dm me for support <3",
         type: 1,
         url: "https://www.twitch.tv/discord"
-      }],
-      status: "online"
+      }
+    ],
+    status: "online"
   });
+}); // ✅ THIS WAS MISSING (CRITICAL FIX)
 
 // ================= MAIN =================
 client.on("messageCreate", async (message) => {
@@ -83,7 +85,6 @@ client.on("messageCreate", async (message) => {
       return;
     }
 
-    // EXISTING TICKET
     thread = await client.channels.fetch(threadId);
     if (!thread) return;
 
