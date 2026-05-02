@@ -74,7 +74,8 @@ async function getOrCreateTicket(user, message) {
       .from("tickets")
       .insert({
         user_id: user.id,
-        thread_id: thread.id
+        thread_id: thread.id,
+        open: true
       })
       .select()
       .single();
@@ -96,67 +97,91 @@ async function getOrCreateTicket(user, message) {
   return ticket;
 }
 
-// ===== DM HANDLER =====
+// ===== MAIN MESSAGE HANDLER =====
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
 
-  // USER DM
+  // =========================
+  // USER DM → STAFF THREAD
+  // =========================
   if (message.channel.type === ChannelType.DM) {
     const ticket = await getOrCreateTicket(message.author, message);
 
-    await client.channels.cache
-      .get(ticket.thread_id)
-      .send({
-        content: `**${message.author.tag}:** ${message.content}`,
-        files: [...message.attachments.values()]
-      });
+    const thread = await client.channels.fetch(ticket.thread_id);
+
+    if (!thread) return;
+
+    await thread.send({
+      content: `**${message.author.tag}:** ${message.content}`,
+      files: [...message.attachments.values()]
+    });
 
     await supabase.from("messages").insert({
       ticket_id: ticket.id,
       author_id: message.author.id,
       content: message.content,
-      attachments: JSON.stringify(
-        message.attachments.map(a => a.url)
-      )
+      attachments: JSON.stringify([...message.attachments.values()].map(a => a.url))
     });
   }
 
-  // STAFF THREAD
-  if (message.guild && message.channel.isThread()) {
-    if (!message.member.roles.cache.has(STAFF_ROLE_ID)) return;
+  // =========================
+  // STAFF THREAD COMMANDS
+  // =========================
+  if (!message.guild) return;
+  if (message.channel.type !== ChannelType.GuildPublicThread &&
+      message.channel.type !== ChannelType.GuildPrivateThread) return;
 
-    const { data: ticket } = await supabase
-      .from("tickets")
-      .select("*")
-      .eq("thread_id", message.channel.id)
-      .single();
+  if (!message.member) return;
 
-    if (!ticket) return;
+  if (!message.member.roles.cache.has(STAFF_ROLE_ID)) return;
 
-    const user = await client.users.fetch(ticket.user_id);
+  const { data: ticket } = await supabase
+    .from("tickets")
+    .select("*")
+    .eq("thread_id", message.channel.id)
+    .single();
 
-    // REPLY
-    if (message.content.startsWith("!r ")) {
-      const reply = message.content.slice(3);
+  if (!ticket) return;
 
+  const user = await client.users.fetch(ticket.user_id);
+
+  // =========================
+  // REPLY COMMAND
+  // =========================
+  if (message.content.startsWith("!r ")) {
+    const reply = message.content.slice(3);
+
+    try {
       await user.send(reply);
-
-      await supabase.from("messages").insert({
-        ticket_id: ticket.id,
-        author_id: message.author.id,
-        content: reply
-      });
+    } catch (err) {
+      console.log("DM failed:", err);
     }
 
-    // EDIT LAST MESSAGE
-    if (message.content.startsWith("!edit ")) {
-      const newContent = message.content.slice(6);
+    await supabase.from("messages").insert({
+      ticket_id: ticket.id,
+      author_id: message.author.id,
+      content: reply
+    });
+  }
 
-      await user.send(`(edited) ${newContent}`);
+  // =========================
+  // EDIT (simple resend)
+  // =========================
+  if (message.content.startsWith("!edit ")) {
+    const newContent = message.content.slice(6);
+
+    try {
+      await user.send(`✏️ Edited: ${newContent}`);
+    } catch (err) {
+      console.log("DM edit failed:", err);
     }
+  }
 
-    // CLOSE
-    if (message.content === "!close") {
+  // =========================
+  // CLOSE TICKET
+  // =========================
+  if (message.content === "!close") {
+    try {
       await user.send({
         embeds: [
           new EmbedBuilder()
@@ -165,29 +190,30 @@ client.on("messageCreate", async (message) => {
             .setColor("Red")
         ]
       });
-
-      await supabase
-        .from("tickets")
-        .update({ open: false })
-        .eq("id", ticket.id);
-
-      // TRANSCRIPT
-      const { data: messages } = await supabase
-        .from("messages")
-        .select("*")
-        .eq("ticket_id", ticket.id);
-
-      let transcript = messages
-        .map(m => `${m.author_id}: ${m.content}`)
-        .join("\n");
-
-      await message.channel.send({
-        content: "Transcript:\n" + transcript
-      });
-
-      await message.channel.setLocked(true);
-      await message.channel.setArchived(true);
+    } catch (err) {
+      console.log("Close DM failed:", err);
     }
+
+    await supabase
+      .from("tickets")
+      .update({ open: false })
+      .eq("id", ticket.id);
+
+    const { data: messages } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("ticket_id", ticket.id);
+
+    let transcript = (messages || [])
+      .map(m => `${m.author_id}: ${m.content}`)
+      .join("\n");
+
+    await message.channel.send({
+      content: "📄 Transcript:\n```" + transcript + "```"
+    });
+
+    await message.channel.setLocked(true);
+    await message.channel.setArchived(true);
   }
 });
 
