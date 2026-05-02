@@ -2,7 +2,6 @@ const express = require("express");
 const app = express();
 
 app.get("/", (_, res) => res.send("Modmail running"));
-
 app.listen(3000, () => console.log("Web server running"));
 
 const {
@@ -29,25 +28,26 @@ const GUILD_ID = "1461112510798233927";
 const FORUM_CHANNEL_ID = "1500206600529641482";
 const STAFF_ROLE_ID = "1461112511301685296";
 
-// memory map (resets on restart)
+// CUSTOM COLORS (change this)
+const EMBED_COLOR = 0x9b59b6; // purple
+
 const tickets = new Map();
 
 // ================= READY =================
 client.once("ready", () => {
   console.log(`READY: ${client.user.tag}`);
 
-  // SAFE STATUS (fixed)
   client.user.setPresence({
     activities: [
       {
         name: "dm me for support <3",
         type: 1,
-        url: "https://www.twitch.tv/discord"
+        url: "https://twitch.tv/discord"
       }
     ],
     status: "online"
   });
-}); // ✅ THIS WAS MISSING (CRITICAL FIX)
+});
 
 // ================= MAIN =================
 client.on("messageCreate", async (message) => {
@@ -72,12 +72,27 @@ client.on("messageCreate", async (message) => {
 
       tickets.set(message.author.id, thread.id);
 
+      // FIRST DM CONFIRMATION (NEW)
+      await message.author.send({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("📩 Ticket Created")
+            .setDescription("Your message has been sent to staff. Please wait for a response.")
+            .setColor(EMBED_COLOR)
+        ]
+      });
+
+      // STAFF SIDE FIRST MESSAGE
       await thread.send({
         embeds: [
           new EmbedBuilder()
             .setTitle("New Ticket")
             .setDescription(message.content || "*no text*")
-            .setColor("Blue")
+            .setColor(EMBED_COLOR)
+            .setAuthor({
+              name: message.author.tag,
+              iconURL: message.author.displayAvatarURL()
+            })
         ]
       });
 
@@ -89,7 +104,15 @@ client.on("messageCreate", async (message) => {
     if (!thread) return;
 
     await thread.send({
-      content: `**${message.author.tag}:** ${message.content || "*no text*"}`
+      embeds: [
+        new EmbedBuilder()
+          .setDescription(message.content || "*no text*")
+          .setColor(EMBED_COLOR)
+          .setAuthor({
+            name: message.author.tag,
+            iconURL: message.author.displayAvatarURL()
+          })
+      ]
     });
 
     return;
@@ -125,23 +148,25 @@ client.on("messageCreate", async (message) => {
   if (content.startsWith("!")) {
 
     if (content === "!close") {
-      const closeEmbed = new EmbedBuilder()
-        .setTitle("🔒 Ticket Closed")
-        .setDescription(
-          "This ticket has been closed by staff.\n\n" +
-          "Send another message to open a new ticket."
-        )
-        .setColor("Red");
 
-      await message.channel.send({ embeds: [closeEmbed] });
+      // STAFF CLOSE EMBED
+      await message.channel.send({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("🔒 Ticket Closed")
+            .setDescription("This ticket has been closed by staff.")
+            .setColor(EMBED_COLOR)
+        ]
+      });
 
+      // USER CLOSE EMBED
       try {
         await user.send({
           embeds: [
             new EmbedBuilder()
               .setTitle("🔒 Ticket Closed")
-              .setDescription("You can open a new ticket anytime by sending a message.")
-              .setColor("Red")
+              .setDescription("Your ticket has been closed. You can send a new message anytime to open a new one.")
+              .setColor(EMBED_COLOR)
           ]
         });
       } catch {}
@@ -155,9 +180,19 @@ client.on("messageCreate", async (message) => {
     return;
   }
 
-  // ================= NORMAL STAFF MESSAGE =================
+  // ================= STAFF MESSAGE (EMBED VERSION) =================
   try {
-    await user.send(`💬 **Staff:** ${message.content}`);
+    await user.send({
+      embeds: [
+        new EmbedBuilder()
+          .setDescription(message.content)
+          .setColor(EMBED_COLOR)
+          .setAuthor({
+            name: message.author.tag,
+            iconURL: message.author.displayAvatarURL()
+          })
+      ]
+    });
   } catch (err) {
     console.log("DM failed:", err);
   }
