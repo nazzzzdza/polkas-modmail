@@ -24,9 +24,9 @@ const supabase = createClient(
   process.env.SUPABASE_KEY
 );
 
-const GUILD_ID = "YOUR_SERVER_ID";
-const FORUM_CHANNEL_ID = "YOUR_FORUM_CHANNEL_ID";
-const STAFF_ROLE_ID = "YOUR_STAFF_ROLE_ID";
+const GUILD_ID = "1461112510798233927";
+const FORUM_CHANNEL_ID = "1500206600529641482";
+const STAFF_ROLE_ID = "1461112511301685296";
 
 // ===== READY =====
 client.once("ready", () => {
