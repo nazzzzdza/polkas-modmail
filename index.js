@@ -163,17 +163,28 @@ client.on("messageCreate", async (message) => {
   // =========================
   // REPLY
   // =========================
-  if (message.content.startsWith("!r ")) {
-    const text = message.content.slice(3);
+if (message.content.startsWith("!r ")) {
+  const text = message.content.slice(3);
 
-    await user.send(`💬 Staff: ${text}`);
+  try {
+    const user = await client.users.fetch(ticket.user_id);
+
+    await user.send({
+      content: `💬 **Staff Reply:**\n${text}`
+    });
 
     await supabase.from("messages").insert({
       ticket_id: ticket.id,
       author_id: message.author.id,
       content: text
     });
+
+    await message.react("✅");
+  } catch (err) {
+    console.log("❌ FAILED TO SEND DM:", err);
+    await message.react("❌");
   }
+}
 
   // =========================
   // CLOSE
