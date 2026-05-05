@@ -5,7 +5,6 @@ app.get("/", (_, res) => res.send("Modmail running"));
 app.listen(3000, () => console.log("Web server running"));
 
 const fs = require("fs");
-const path = require("path");
 
 const {
   Client,
@@ -15,6 +14,15 @@ const {
   EmbedBuilder
 } = require("discord.js");
 
+const { createClient } = require("@supabase/supabase-js");
+
+// ================= SUPABASE =================
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
+);
+
+// ================= BOT =================
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -41,11 +49,11 @@ for (const file of commandFiles) {
   commands.set(command.name, command);
 }
 
-// ===== TICKETS =====
+// ===== MEMORY CACHE =====
 const tickets = new Map();
 
 // ================= READY =================
-client.once("ready", () => {
+client.once("ready", async () => {
   console.log(`READY: ${client.user.tag}`);
 
   client.user.setPresence({
@@ -58,6 +66,21 @@ client.once("ready", () => {
     ],
     status: "online"
   });
+
+  // RESTORE TICKETS
+  const { data } = await supabase
+    .from("tickets")
+    .select("*")
+    .eq("open", true);
+
+  for (const t of data || []) {
+    tickets.set(t.user_id, {
+      id: t.id,
+      threadId: t.thread_id
+    });
+  }
+
+  console.log(`Restored ${data?.length || 0} tickets`);
 });
 
 // ================= MAIN =================
@@ -79,19 +102,20 @@ client.on("messageCreate", async (message) => {
         console.error(err);
       }
 
-      return; // stop modmail from triggering
+      return;
     }
   }
 
   // ================= USER DM =================
   if (message.channel.isDMBased()) {
-    let threadId = tickets.get(message.author.id);
-    let thread;
-
     const guild = await client.guilds.fetch(GUILD_ID);
     const forum = await guild.channels.fetch(FORUM_CHANNEL_ID);
 
-    if (!threadId) {
+    let ticketData = tickets.get(message.author.id);
+    let thread;
+
+    // ===== CREATE NEW THREAD =====
+    if (!ticketData) {
       thread = await forum.threads.create({
         name: `ticket-${message.author.username}`,
         message: {
@@ -99,8 +123,22 @@ client.on("messageCreate", async (message) => {
         }
       });
 
-      tickets.set(message.author.id, thread.id);
+      const { data: dbTicket } = await supabase
+        .from("tickets")
+        .insert({
+          user_id: message.author.id,
+          thread_id: thread.id,
+          open: true
+        })
+        .select()
+        .single();
 
+      tickets.set(message.author.id, {
+        id: dbTicket.id,
+        threadId: thread.id
+      });
+
+      // ===== YOUR ORIGINAL DM LAYOUT =====
       await message.author.send({
         embeds: [
           new EmbedBuilder()
@@ -113,6 +151,7 @@ client.on("messageCreate", async (message) => {
         ]
       });
 
+      // ===== YOUR ORIGINAL THREAD LAYOUT =====
       await thread.send({
         embeds: [
           new EmbedBuilder()
@@ -126,11 +165,12 @@ client.on("messageCreate", async (message) => {
         ]
       });
 
-      await message.react("📩");
+      await message.react("<a:wh_envelope:1500252173546557480>");
       return;
     }
 
-    thread = await client.channels.fetch(threadId).catch(() => null);
+    // ===== EXISTING THREAD =====
+    thread = await client.channels.fetch(ticketData.threadId).catch(() => null);
     if (!thread) return;
 
     await thread.send({
@@ -159,13 +199,16 @@ client.on("messageCreate", async (message) => {
 
   if (!message.member?.roles.cache.has(STAFF_ROLE_ID)) return;
 
-  const entry = [...tickets.entries()]
-    .find(([_, threadId]) => threadId === message.channel.id);
+  const { data: ticket } = await supabase
+    .from("tickets")
+    .select("*")
+    .eq("thread_id", message.channel.id)
+    .eq("open", true)
+    .single();
 
-  if (!entry) return;
+  if (!ticket) return;
 
-  const userId = entry[0];
-  const content = message.content?.trim();
+  const userId = ticket.user_id;
 
   let user;
   try {
@@ -174,11 +217,14 @@ client.on("messageCreate", async (message) => {
     return;
   }
 
+  const content = message.content?.trim();
+
   // ================= COMMANDS =================
   if (content.startsWith("!")) {
 
     if (content === "!close") {
 
+      // ===== YOUR ORIGINAL CLOSE EMBED =====
       await message.channel.send({
         embeds: [
           new EmbedBuilder()
@@ -202,8 +248,14 @@ client.on("messageCreate", async (message) => {
         });
       } catch {}
 
-      await message.channel.setArchived(true);
+      await supabase
+        .from("tickets")
+        .update({ open: false })
+        .eq("id", ticket.id);
+
       tickets.delete(userId);
+
+      await message.channel.setArchived(true);
 
       return;
     }
