@@ -4,6 +4,9 @@ const app = express();
 app.get("/", (_, res) => res.send("Modmail running"));
 app.listen(3000, () => console.log("Web server running"));
 
+const fs = require("fs");
+const path = require("path");
+
 const {
   Client,
   GatewayIntentBits,
@@ -27,7 +30,18 @@ const client = new Client({
 const GUILD_ID = "1461112510798233927";
 const FORUM_CHANNEL_ID = "1500206600529641482";
 const STAFF_ROLE_ID = "1461112511301685296";
+const PREFIX = "!";
 
+// ===== COMMAND LOADER =====
+const commands = new Map();
+const commandFiles = fs.readdirSync("./commands").filter(f => f.endsWith(".js"));
+
+for (const file of commandFiles) {
+  const command = require(`./commands/${file}`);
+  commands.set(command.name, command);
+}
+
+// ===== TICKETS =====
 const tickets = new Map();
 
 // ================= READY =================
@@ -49,6 +63,25 @@ client.once("ready", () => {
 // ================= MAIN =================
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
+
+  // ================= COMMAND SYSTEM =================
+  if (message.guild && !message.channel.isThread()) {
+    if (message.content.startsWith(PREFIX)) {
+      const args = message.content.slice(PREFIX.length).trim().split(/ +/);
+      const commandName = args.shift().toLowerCase();
+
+      const command = commands.get(commandName);
+      if (!command) return;
+
+      try {
+        await command.execute(message, args);
+      } catch (err) {
+        console.error(err);
+      }
+
+      return; // stop modmail from triggering
+    }
+  }
 
   // ================= USER DM =================
   if (message.channel.isDMBased()) {
@@ -93,7 +126,7 @@ client.on("messageCreate", async (message) => {
         ]
       });
 
-      await message.react("<a:wh_envelope:1500252173546557480>");
+      await message.react("📩");
       return;
     }
 
