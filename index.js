@@ -35,10 +35,15 @@ const tickets = new Map();
 client.once("ready", () => {
   console.log(`READY: ${client.user.tag}`);
 
-  client.user.setPresence({
-    activities: [{ name: "dm me for inquiries" }],
-    status: "online"
-  });
+client.user.setPresence({
+  activities: [{
+    name: "dm me for inquiries",
+    type: 1,
+    url: "https://twitch.tv/discord"
+  }],
+  status: "online"
+});
+
 });
 
 // ================= MAIN =================
