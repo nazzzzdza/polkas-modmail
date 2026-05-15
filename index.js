@@ -1,200 +1,148 @@
+const { Client, GatewayIntentBits, REST, Routes, Collection } = require("discord.js");
+const fs = require("fs");
 const express = require("express");
+
+// ✅ SUPABASE
+const { createClient } = require("@supabase/supabase-js");
+const WebSocket = require("ws");
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY,
+  {
+    realtime: {
+      transport: WebSocket
+    },
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false
+    }
+  }
+);
+
+module.exports.supabase = supabase;
+
+// ---------------------------
+// Web server (Render keep alive)
+// ---------------------------
 const app = express();
+const PORT = process.env.PORT || 3000;
 
-app.get("/", (_, res) => res.send("Modmail running"));
-app.listen(3000, () => console.log("Web server running"));
+app.get("/", (req, res) => {
+  res.send("polka's helper is alive, checking your orders!");
+});
 
-const {
-  Client,
-  GatewayIntentBits,
-  Partials,
-  ChannelType,
-  EmbedBuilder
-} = require("discord.js");
+app.listen(PORT, () => {
+  console.log(`Web server running on port ${PORT}`);
+});
 
-// ================= BOT =================
+// ---------------------------
+// Discord client
+// ---------------------------
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.DirectMessages,
     GatewayIntentBits.MessageContent
-  ],
-  partials: [Partials.Channel, Partials.Message, Partials.User]
+  ]
 });
 
-// ================= CONFIG =================
-const GUILD_ID = "1387525349222645873";
-const FORUM_CHANNEL_ID = "1504256009365885029";
-const STAFF_ROLE_ID = "1500489431918837861";
+client.commands = new Collection();
 
-// ================= MEMORY =================
-const tickets = new Map();
+// ---------------------------
+// Load commands
+// ---------------------------
+const commandFiles = fs.readdirSync("./commands").filter(file => file.endsWith(".js"));
+const commands = [];
 
-// ================= READY =================
-client.once("ready", () => {
-  console.log(`READY: ${client.user.tag}`);
+for (const file of commandFiles) {
+  const command = require(`./commands/${file}`);
 
-client.user.setPresence({
-  activities: [{
-    name: "dm me for inquiries",
-    type: 1,
-    url: "https://twitch.tv/discord"
-  }],
-  status: "online"
-});
+  if (command.data) {
+    client.commands.set(command.data.name, command);
+    commands.push(command.data.toJSON());
+  }
+}
 
-});
+// ---------------------------
+// Register slash commands
+// ---------------------------
+const token = String(process.env.TOKEN || "").trim();
+const rest = new REST({ version: "10" }).setToken(token);
 
-// ================= MAIN =================
-client.on("messageCreate", async (message) => {
-  if (message.author.bot) return;
+// ---------------------------
+// READY EVENT
+// ---------------------------
+client.once("ready", async () => {
+  console.log(`polka's helper is online as ${client.user.tag}`);
+
+  client.user.setPresence({
+    activities: [{
+      name: "processing your orders <3",
+      type: 1,
+      url: "https://www.twitch.tv/discord"
+    }],
+    status: "online"
+  });
 
   try {
+    await rest.put(
+      Routes.applicationCommands(client.user.id),
+      { body: commands }
+    );
 
-    // ================= USER DM =================
-    if (!message.guild) {
-
-      const guild = await client.guilds.fetch(GUILD_ID);
-      const forum = await guild.channels.fetch(FORUM_CHANNEL_ID);
-
-      let ticket = tickets.get(message.author.id);
-      let thread;
-
-      // EXISTING THREAD
-      if (ticket) {
-        thread = await client.channels.fetch(ticket.threadId).catch(() => null);
-
-        if (thread) {
-          await thread.send({
-            embeds: [
-              new EmbedBuilder()
-                .setDescription(message.content || "*no text*")
-                .setColor(0x90EE90)
-                .setAuthor({
-                  name: message.author.tag,
-                  iconURL: message.author.displayAvatarURL()
-                })
-            ]
-          });
-
-          return;
-        }
-      }
-
-      // CREATE THREAD
-      thread = await forum.threads.create({
-        name: `ticket-${message.author.username}`,
-        message: {
-          content: `new thread from **${message.author.tag}**`
-        }
-      });
-
-      tickets.set(message.author.id, {
-        threadId: thread.id
-      });
-
-      // DM user
-      try {
-        await message.author.send({
-          embeds: [
-            new EmbedBuilder()
-              .setTitle("new thread opened")
-              .setDescription("please wait for staff reply")
-              .setColor(0x90EE90)
-          ]
-        });
-      } catch (err) {
-        console.log("DM failed:", err);
-      }
-
-      // THREAD MESSAGE
-      await thread.send({
-        embeds: [
-          new EmbedBuilder()
-            .setTitle("new message")
-            .setDescription(message.content || "*no text*")
-            .setColor(0x90EE90)
-            .setAuthor({
-              name: message.author.tag,
-              iconURL: message.author.displayAvatarURL()
-            })
-        ]
-      });
-
-      return;
-    }
-
-    // ================= STAFF REPLIES =================
-    if (!message.guild) return;
-
-    const isThread =
-      message.channel.type === ChannelType.PublicThread ||
-      message.channel.type === ChannelType.PrivateThread;
-
-    if (!isThread) return;
-
-    if (!message.member?.roles.cache.has(STAFF_ROLE_ID)) return;
-
-    const ticket = [...tickets.values()]
-      .find(t => t.threadId === message.channel.id);
-
-    if (!ticket) return;
-
-    const userId = [...tickets.entries()]
-      .find(([_, v]) => v.threadId === message.channel.id)?.[0];
-
-    if (!userId) return;
-
-    const user = await client.users.fetch(userId).catch(() => null);
-    if (!user) return;
-
-    // CLOSE
-    if (message.content === "!close") {
-      await message.channel.send({
-        embeds: [
-          new EmbedBuilder()
-            .setTitle("thread closed")
-            .setDescription("ticket closed by staff")
-            .setColor(0x90EE90)
-        ]
-      });
-
-      try {
-        await user.send({
-          embeds: [
-            new EmbedBuilder()
-              .setTitle("ticket closed")
-              .setDescription("you may open a new ticket anytime.")
-              .setColor(0x90EE90)
-          ]
-        });
-      } catch {}
-
-      tickets.delete(userId);
-
-      await message.channel.setArchived(true);
-      await message.channel.setLocked(true);
-
-      return;
-    }
-
-    // STAFF REPLY → USER
-    await user.send({
-      embeds: [
-        new EmbedBuilder()
-          .setDescription(message.content)
-          .setColor(0xffffff)
-          .setAuthor({
-            name: message.author.tag,
-            iconURL: message.author.displayAvatarURL()
-          })
-      ]
-    });
-
-  } catch (err) {
-    console.log("ERROR:", err);
+    console.log("Slash commands registered.");
+  } catch (error) {
+    console.error(error);
   }
 });
 
-client.login(process.env.TOKEN);
+// ---------------------------
+// Handle interactions
+// ---------------------------
+client.on("interactionCreate", async (interaction) => {
+
+  if (interaction.isChatInputCommand()) {
+    const command = client.commands.get(interaction.commandName);
+    if (!command) return;
+
+    try {
+      await command.execute(interaction);
+    } catch (error) {
+      console.error(error);
+
+      if (!interaction.replied) {
+        await interaction.reply({
+          content: "there was an error executing that command.",
+          ephemeral: true
+        });
+      }
+    }
+  }
+
+  else {
+    for (const command of client.commands.values()) {
+      if (typeof command.handleInteraction === "function") {
+        try {
+          await command.handleInteraction(interaction);
+        } catch (error) {
+          console.error(error);
+        }
+      }
+    }
+  }
+});
+
+// ---------------------------
+// Login
+// ---------------------------
+console.log("Token loaded:", token ? "YES" : "NO");
+
+client.login(token)
+  .then(() => {
+    console.log("Discord login successful");
+  })
+  .catch((err) => {
+    console.error("Discord login failed:", err);
+  });
