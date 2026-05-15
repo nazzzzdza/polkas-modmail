@@ -1,18 +1,16 @@
+global.WebSocket = require("ws");
+
 const { Client, GatewayIntentBits, REST, Routes, Collection } = require("discord.js");
 const fs = require("fs");
 const express = require("express");
 
 // ✅ SUPABASE
 const { createClient } = require("@supabase/supabase-js");
-const WebSocket = require("ws");
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY,
   {
-    realtime: {
-      transport: WebSocket
-    },
     auth: {
       persistSession: false,
       autoRefreshToken: false,
@@ -24,7 +22,7 @@ const supabase = createClient(
 module.exports.supabase = supabase;
 
 // ---------------------------
-// Web server (Render keep alive)
+// Web server
 // ---------------------------
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -66,13 +64,13 @@ for (const file of commandFiles) {
 }
 
 // ---------------------------
-// Register slash commands
+// Slash commands
 // ---------------------------
 const token = String(process.env.TOKEN || "").trim();
 const rest = new REST({ version: "10" }).setToken(token);
 
 // ---------------------------
-// READY EVENT
+// Ready event
 // ---------------------------
 client.once("ready", async () => {
   console.log(`polka's helper is online as ${client.user.tag}`);
@@ -99,7 +97,7 @@ client.once("ready", async () => {
 });
 
 // ---------------------------
-// Handle interactions
+// Interactions
 // ---------------------------
 client.on("interactionCreate", async (interaction) => {
 
