@@ -1,146 +1,236 @@
-global.WebSocket = require("ws");
-
-const { Client, GatewayIntentBits, REST, Routes, Collection } = require("discord.js");
-const fs = require("fs");
 const express = require("express");
+const app = express();
 
-// ✅ SUPABASE
+app.get("/", (_, res) => res.send("icona modmail running"));
+app.listen(3000, () => console.log("web server running"));
+
+const {
+  Client,
+  GatewayIntentBits,
+  Partials,
+  ChannelType,
+  EmbedBuilder
+} = require("discord.js");
+
 const { createClient } = require("@supabase/supabase-js");
 
+// ================= SUPABASE =================
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY,
-  {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false
-    }
-  }
+  process.env.SUPABASE_KEY
 );
 
-module.exports.supabase = supabase;
-
-// ---------------------------
-// Web server
-// ---------------------------
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-app.get("/", (req, res) => {
-  res.send("polka's helper is alive, checking your orders!");
-});
-
-app.listen(PORT, () => {
-  console.log(`Web server running on port ${PORT}`);
-});
-
-// ---------------------------
-// Discord client
-// ---------------------------
+// ================= CLIENT =================
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.DirectMessages,
     GatewayIntentBits.MessageContent
+  ],
+  partials: [
+    Partials.Channel,
+    Partials.Message,
+    Partials.User,
+    Partials.GuildMember
   ]
 });
 
-client.commands = new Collection();
+// ================= CONFIG =================
+const GUILD_ID = "1461112510798233927";
+const FORUM_CHANNEL_ID = "1500206600529641482";
+const STAFF_ROLE_ID = "1461112511301685296";
 
-// ---------------------------
-// Load commands
-// ---------------------------
-const commandFiles = fs.readdirSync("./commands").filter(file => file.endsWith(".js"));
-const commands = [];
+// ================= READY =================
+client.once("ready", () => {
+  console.log(`READY: ${client.user.tag}`);
 
-for (const file of commandFiles) {
-  const command = require(`./commands/${file}`);
+client.user.setPresence({
+  activities: [{
+    name: "dm me for inquiries <3",
+    type: 1,
+    url: "https://twitch.tv/discord"
+  }],
+  status: "online"
+});
 
-  if (command.data) {
-    client.commands.set(command.data.name, command);
-    commands.push(command.data.toJSON());
-  }
-}
+});
 
-// ---------------------------
-// Slash commands
-// ---------------------------
-const token = String(process.env.TOKEN || "").trim();
-const rest = new REST({ version: "10" }).setToken(token);
+// ================= MESSAGE SYSTEM =================
+client.on("messageCreate", async (message) => {
 
-// ---------------------------
-// Ready event
-// ---------------------------
-client.once("ready", async () => {
-  console.log(`polka's helper is online as ${client.user.tag}`);
-
-  client.user.setPresence({
-    activities: [{
-      name: "dm me for inquiries <3",
-      type: 1,
-      url: "https://www.twitch.tv/discord"
-    }],
-    status: "online"
-  });
+  if (message.author.bot) return;
 
   try {
-    await rest.put(
-      Routes.applicationCommands(client.user.id),
-      { body: commands }
-    );
 
-    console.log("Slash commands registered.");
-  } catch (error) {
-    console.error(error);
-  }
-});
+    // ================= USER DM =================
+    if (!message.guild) {
 
-// ---------------------------
-// Interactions
-// ---------------------------
-client.on("interactionCreate", async (interaction) => {
+      const guild = await client.guilds.fetch(GUILD_ID);
+      const forum = await guild.channels.fetch(FORUM_CHANNEL_ID);
 
-  if (interaction.isChatInputCommand()) {
-    const command = client.commands.get(interaction.commandName);
-    if (!command) return;
+      // CHECK EXISTING TICKET
+      const { data: existingTicket } = await supabase
+        .from("tickets")
+        .select("*")
+        .eq("user_id", message.author.id)
+        .eq("open", true)
+        .single();
 
-    try {
-      await command.execute(interaction);
-    } catch (error) {
-      console.error(error);
+      let thread = null;
 
-      if (!interaction.replied) {
-        await interaction.reply({
-          content: "there was an error executing that command.",
-          ephemeral: true
+      // ================= EXISTING THREAD =================
+      if (existingTicket) {
+
+        thread = await client.channels
+          .fetch(existingTicket.thread_id)
+          .catch(() => null);
+
+      }
+
+      // ================= CREATE THREAD =================
+      if (!thread) {
+
+        thread = await forum.threads.create({
+          name: `ticket-${message.author.username}`,
+          message: {
+            content: `new thread from **${message.author.tag}**`
+          }
         });
-      }
-    }
-  }
 
-  else {
-    for (const command of client.commands.values()) {
-      if (typeof command.handleInteraction === "function") {
+        await supabase
+          .from("tickets")
+          .upsert({
+            user_id: message.author.id,
+            thread_id: thread.id,
+            open: true
+          });
+
+        // OPEN MESSAGE
         try {
-          await command.handleInteraction(interaction);
-        } catch (error) {
-          console.error(error);
-        }
+          await message.author.send({
+            embeds: [
+              new EmbedBuilder()
+                .setTitle("<a:b_heels:1501198524782743602> ⋯ new thread opened")
+                .setDescription(
+                  "please be patient while waiting for a response.\n" +
+                  "if needed, ping staff in the server after 24h."
+                )
+                .setColor(0x4F4F4F)
+            ]
+          });
+        } catch {}
       }
+
+      // ================= USER EMBED =================
+      const embed = new EmbedBuilder()
+        .setDescription(message.content || "*no msg attached*")
+        .setColor(0xFFFFFF)
+        .setAuthor({
+          name: message.author.tag,
+          iconURL: message.author.displayAvatarURL()
+        });
+
+      const firstAttachment = message.attachments.first();
+
+      // IMAGE SUPPORT
+      if (firstAttachment?.contentType?.startsWith("image")) {
+        embed.setImage(firstAttachment.url);
+      }
+
+      // SEND TO THREAD
+      await thread.send({
+        embeds: [embed]
+      });
+
+      return;
     }
+
+    // ================= STAFF =================
+    const isThread =
+      message.channel.type === ChannelType.PublicThread ||
+      message.channel.type === ChannelType.PrivateThread;
+
+    if (!isThread) return;
+
+    if (!message.member?.roles.cache.has(STAFF_ROLE_ID)) return;
+
+    // FIND TICKET
+    const { data: ticket } = await supabase
+      .from("tickets")
+      .select("*")
+      .eq("thread_id", message.channel.id)
+      .eq("open", true)
+      .single();
+
+    if (!ticket) return;
+
+    const user = await client.users
+      .fetch(ticket.user_id)
+      .catch(() => null);
+
+    if (!user) return;
+
+    // ================= CLOSE =================
+    if (message.content === "!close") {
+
+      await message.channel.send({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("<a:w_bubble:1501198513302667306> ⋯ thread closed")
+            .setDescription("ticket closed by staff.")
+            .setColor(0x4F4F4F)
+        ]
+      });
+
+      try {
+        await user.send({
+          embeds: [
+            new EmbedBuilder()
+              .setTitle("<a:w_bubble:1501198513302667306> ⋯ thread closed")
+              .setDescription(
+                "this ticket has been closed.\n" +
+                "send a new message to open a new thread."
+              )
+              .setColor(0x4F4F4F)
+          ]
+        });
+      } catch {}
+
+      await supabase
+        .from("tickets")
+        .update({ open: false })
+        .eq("user_id", ticket.user_id);
+
+      await message.channel.setArchived(true);
+      await message.channel.setLocked(true);
+
+      return;
+    }
+
+    // ================= STAFF EMBED =================
+    const embed = new EmbedBuilder()
+      .setDescription(message.content || "*no msg attached*")
+      .setColor(0xFA9370)
+      .setAuthor({
+        name: message.author.tag,
+        iconURL: message.author.displayAvatarURL()
+      });
+
+    const firstAttachment = message.attachments.first();
+
+    if (firstAttachment?.contentType?.startsWith("image")) {
+      embed.setImage(firstAttachment.url);
+    }
+
+    // SEND TO USER
+    await user.send({
+      embeds: [embed]
+    });
+
+  } catch (err) {
+    console.log("ERROR:", err);
   }
 });
 
-// ---------------------------
-// Login
-// ---------------------------
-console.log("Token loaded:", token ? "YES" : "NO");
-
-client.login(token)
-  .then(() => {
-    console.log("Discord login successful");
-  })
-  .catch((err) => {
-    console.error("Discord login failed:", err);
-  });
+client.login(process.env.TOKEN);
