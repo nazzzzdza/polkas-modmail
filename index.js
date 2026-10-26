@@ -204,7 +204,7 @@ client.on("messageCreate", async (message) => {
     // ================= STAFF EMBED =================
     const embed = new EmbedBuilder()
       .setDescription(message.content || "*no msg attached*")
-      .setColor(0xFA9370)
+      .setColor(0xFFB6C1)
       .setAuthor({
         name: message.author.tag,
         iconURL: message.author.displayAvatarURL()
