@@ -1,4 +1,3 @@
-```js
 const express = require("express");
 const app = express();
 
@@ -132,7 +131,7 @@ client.on("messageCreate", async (message) => {
         if (insertError) {
           console.error("Could not save new ticket to Supabase:", insertError);
           await thread.send(
-            "⚠️ Warning: I couldn't save this ticket to the database. Please contact staff."
+            "couldn't save this ticket to the database, contact owner"
           );
           return;
         }
@@ -211,7 +210,7 @@ client.on("messageCreate", async (message) => {
 
     if (!ticket) {
       console.log(
-        `No open ticket found in Supabase for thread ${message.channel.id}.`
+        `no open ticket found for thread ${message.channel.id}.`
       );
       return;
     }
@@ -219,7 +218,7 @@ client.on("messageCreate", async (message) => {
     const user = await client.users
       .fetch(ticket.user_id)
       .catch((err) => {
-        console.error("Could not fetch ticket user:", err);
+        console.error("could not fetch ticket user:", err);
         return null;
       });
 
@@ -249,7 +248,7 @@ client.on("messageCreate", async (message) => {
           ]
         });
       } catch (err) {
-        console.error("Could not DM ticket closure to user:", err);
+        console.error("could not dm ticket closure to user:", err);
       }
 
       const { error: updateError } = await supabase
@@ -260,7 +259,7 @@ client.on("messageCreate", async (message) => {
       if (updateError) {
         console.error("Could not update ticket status:", updateError);
         await message.channel.send(
-          "⚠️ The ticket status could not be updated in the database."
+          "ticket status could not be updated"
         );
         return;
       }
@@ -268,7 +267,7 @@ client.on("messageCreate", async (message) => {
       await message.channel.setArchived(true);
       await message.channel.setLocked(true);
 
-      console.log(`Ticket ${message.channel.id} closed by ${message.author.tag}`);
+      console.log(`ticket ${message.channel.id} closed by ${message.author.tag}`);
       return;
     }
 
@@ -297,13 +296,13 @@ client.on("messageCreate", async (message) => {
       await user.send({ embeds: [embed] });
 
       console.log(
-        `Staff reply delivered to ${user.tag} from thread ${message.channel.id}`
+        `staff reply delivered to ${user.tag} from thread ${message.channel.id}`
       );
     } catch (err) {
       console.error("Could not DM staff reply to ticket user:", err);
 
       await message.reply(
-        "I couldn't deliver that reply to the user's DMs. They may have DMs disabled."
+        "couldn't deliver that reply to the user, may have dms disabled."
       ).catch(console.error);
     }
   } catch (err) {
@@ -313,4 +312,3 @@ client.on("messageCreate", async (message) => {
 
 // ================= LOGIN =================
 client.login(process.env.TOKEN);
-```
